@@ -1,0 +1,76 @@
+pipeline {
+    agent any
+    environment {
+        AWS_ACCOUNT_ID="667978309312"
+        AWS_DEFAULT_REGION="us-east-2" 
+        IMAGE_REPO_NAME="backend-local"
+        IMAGE_TAG="${BUILD_NUMBER}"
+        REPOSITORY_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}"
+        database = "dev"
+        ENVIRONMENT = "production"
+        PORT = "8080"
+        
+        S3_Bucket = "develop"
+        NAMESPACE = "develop"
+
+        NODE_NAME = "dev"
+
+      
+    }
+    stages{
+        stage('Build docker image'){
+            steps{
+                script{
+                    sh "docker build -t shopdesk-backend-local:${IMAGE_TAG} -f DockerfileLocal ."
+                    sh "aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                    sh "docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${REPOSITORY_URI}:$IMAGE_TAG"
+                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}"
+                    sh "docker rmi ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}"
+                }
+            }
+        }
+      stage('deploying stage'){
+            steps{
+                script{
+                    echo 'deploy'
+                    sh """
+                     pwd
+                     cd /var/lib/jenkins/workspace/shopdesk-dev-shopdesk-backend
+                     ls
+                     sed -i "s%_database%$database%g;s%_SD_ORDER_SERVICE%$SD_ORDER_SERVICE%g;s%_LMS_BASE_URL%$LMS_BASE_URL%g;s%_FBR_INTEGRATION_URL%$FBR_INTEGRATION_URL%g;s%_FBR_INTEGRATION_TOKEN%$FBR_INTEGRATION_TOKEN%g;s%_ENVIRONMENT%$ENVIRONMENT%g;s%_HTTP_HOST%$HTTP_HOST%g;s%NODE_NAME%$NODE_NAME%g;s%_FABRIC_BASE_URL%$FABRIC_BASE_URL%g;s%_FABRIC_HOST%$FABRIC_HOST%g;s%_APP_PORT%$PORT%g;s%_FABRIC_JWT_KEY%$FABRIC_JWT_KEY%g;s%_S3_Bucket%$S3_Bucket%g;s%AWS_ACCOUNT_ID%$AWS_ACCOUNT_ID%g;s%AWS_DEFAULT_REGION%$AWS_DEFAULT_REGION%g;s%TAG%$IMAGE_TAG%g;s%NAMESPACE%$NAMESPACE%g;s%IMAGE_REPO_NAME%$IMAGE_REPO_NAME%g;s%_FBR_INTEGRATION_RETURN_URL%$FBR_INTEGRATION_RETURN_URL%g;s%_EMAIL_FROM%$EMAIL_FROM%g;s%_EMAIL_PROTOCOL%$EMAIL_PROTOCOL%g;s%_SMTP_HOST%$SMTP_HOST%g;s%_APP_SMTP_PORT%$SMTP_PORT%g;s%_SMTP_USER%$SMTP_USER%g;s%_SMTP_PASS%$SMTP_PASS%g;" "k8s/deployment.yaml"       
+                     cd k8s
+                     sshpass -p "yo" scp deployment.yaml or@115.42.77.77:all-svc-files/shopdesk-backend-local/service.yaml
+                     
+                     """
+
+                }
+            }
+        }
+        }
+    }
+
+node {
+  def remote = [:]
+  remote.name = 'hypr-dev-k8-cluster'
+  remote.host = '115.42.77.77'
+  remote.user = 'or'
+  remote.password = 'yo'
+  remote.allowAnyHosts = true
+  stage('Remote SSH') {
+    sshCommand remote: remote, command: "aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 667978309312.dkr.ecr.us-east-2.amazonaws.com"
+    sshCommand remote: remote, command: "docker pull 667978309312.dkr.ecr.us-east-2.amazonaws.com/shopdesk-backend-local:${BUILD_NUMBER}"
+    sshCommand remote: remote, command: "docker tag 667978309312.dkr.ecr.us-east-2.amazonaws.com/shopdesk-backend-local:${BUILD_NUMBER} shopdesk-backend-local:${BUILD_NUMBER}"
+    sshCommand remote: remote, command: "docker rmi 667978309312.dkr.ecr.us-east-2.amazonaws.com/shopdesk-backend-local:${BUILD_NUMBER}"  
+    sshCommand remote: remote, command: """
+   pwd
+   cd work
+   cd bin
+   ./kind --name or load docker-image shopdesk-backend-local:${BUILD_NUMBER}
+"""
+    sshCommand remote: remote, command:  """ 
+   pwd
+   cat all-svc-files/shopdesk-backend-local/service.yaml
+   kubectl apply -f all-svc-files/shopdesk-backend-local/service.yaml
+"""
+  }
+}

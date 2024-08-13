@@ -1,0 +1,119 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: SERVICE_NAME
+  name: SERVICE_NAME-deployment
+  namespace: NAME_SPACE
+spec:
+  # replicas: 1
+  selector:
+    matchLabels:
+      app: SERVICE_NAME
+  template:
+    metadata:
+      labels:
+        app: SERVICE_NAME
+    spec:
+      containers:
+      - image: oe-dev-walkeaze-adapter-local:latest
+        imagePullPolicy: IfNotPresent
+        name: SERVICE_NAME
+        livenessProbe:
+          tcpSocket:
+             port: SERVICE_PORT
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 60
+        name: SERVICE_NAME
+        ports:
+        - containerPort: SERVICE_PORT
+          protocol: TCP
+        readinessProbe:
+          tcpSocket:
+             port: SERVICE_PORT
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 60
+        env:
+        - name: NODE_ENV
+          value: _NODE_ENV
+        - name: TS_URL
+          value: _TS_URL
+        - name: TS_KEY
+          value: _TS_KEY
+        - name: TS_ID
+          value: "_TS_ID"
+        - name: TS_PASSWORD
+          value: "_TS_PASSWORD"
+        - name: OE_AUTH_RETRY_ATTEMPT
+          value: "_OE_AUTH_RETRY_ATTEMPT"
+        - name: OE_URL
+          value: _OE_URL
+        - name: OE_USERNAME
+          value: _OE_USERNAME
+        - name: OE_PASSWORD
+          value: _OE_PASSWORD
+        - name: FB_APP_KEY
+          value: _FB_APP_KEY
+        - name: FB_AUTH_DOMAIN
+          value: _FB_AUTH_DOMAIN
+        - name: FB_PROJECT_ID
+          value: _FB_PROJECT_ID
+        - name: FB_STORAGE_BUCKET
+          value: _FB_STORAGE_BUCKET
+        - name: FB_MSG_SENDER_ID
+          value: "_FB_MSG_SENDER_ID"
+        - name: FB_APP_ID
+          value: "_FB_APP_ID"
+        - name: INV_CRON_FRQ
+          value: "_INV_CRON_FRQ"
+        - name: PRICE_CRON_FRQ
+          value: "_PRICE_CRON_FRQ"
+        - name: RABBITMQ_USER_NAME
+          value: _RABBITMQ_USER_NAME
+        - name: RABBITMQ_PASSWORD
+          value: _RABBITMQ_PASSWORD
+        - name: RABBITMQ_HOST
+          value: _RABBITMQ_HOST
+        - name: RABBITMQ_QUEUE_NAME
+          value: _RABBITMQ_QUEUE_NAME
+        - name: EXCHANGE_DLX
+          value: _EXCHANGE_DLX
+        - name: ROUTINGKEYDLX
+          value: _ROUTINGKEYDLX
+        - name: OE_ADAPTOR_DLX
+          value: _OE_ADAPTOR_DLX
+        - name: INV_TRANS_DATE
+          value: "_INV_TRANS_DATE"
+        - name: PRICE_TRANS_DATE
+          value: "_PRICE_TRANS_DATE"
+        - name: PRODUCT_CRON_FRQ
+          value: "_PRODUCT_CRON_FRQ"
+        - name: Product_TRANS_DATE
+          value: "_Product_TRANS_DATE"
+        - name: OE_REALM
+          value: _OE_REALM
+        - name: OE_AUTH_URL
+          value: _OE_AUTH_URL
+          
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: SERVICE_NAME
+  name: SERVICE_NAME
+  namespace: NAME_SPACE
+spec:
+  ports:
+  - port: 80
+    name: http-SERVICE_NAME
+    protocol: TCP
+    targetPort: SERVICE_PORT
+  selector:
+    app: SERVICE_NAME
+  type: NodePort

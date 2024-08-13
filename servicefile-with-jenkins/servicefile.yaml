@@ -1,0 +1,149 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shopdesk-deployment
+  namespace: shopdesk-dev
+  labels:
+    app: shopdesk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shopdesk-backend-local
+  template:
+    metadata:
+      labels:
+        app: shopdesk-backend-local
+    spec:
+      containers:
+      - name: shopdesk-backend-local
+        image: shopdesk-backend-local:IMAGE_TAG
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          tcpSocket:
+             port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 60
+        name: shopdesk
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        readinessProbe:
+          tcpSocket:
+             port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 60
+        resources:
+          limits:
+            cpu: "1.8"
+            memory: 2Gi
+          requests:
+            cpu: "1.1"
+            memory: 1Gi  
+        env:
+        - name: ENVIRONMENT
+          value: production
+        - name: database
+          value: _database
+        - name: SD_ORDER_SERVICE
+          value: _SD_ORDER_SERVICE  
+        - name: FABRIC_BASE_URL
+          value: _FABRIC_BASE_URL
+        - name: FABRIC_HOST
+          value: _FABRIC_HOST
+        - name: LMS_BASE_URL
+          value: _LMS_BASE_URL  
+        - name: FBR_INTEGRATION_URL
+          value: _FBR_INTEGRATION_URL
+        - name: FBR_INTEGRATION_TOKEN
+          value: _FBR_INTEGRATION_TOKEN       
+        - name: FBR_INTEGRATION_RETURN_URL  
+          value: _FBR_INTEGRATION_RETURN_URL
+        - name: PORT
+          value: "_APP_PORT"
+        - name: FABRIC_JWT_KEY
+          value: _FABRIC_JWT_KEY
+        - name: HTTP_HOST
+          value: _HTTP_HOST
+        - name: S3_Bucket
+          value: "_S3_Bucket"
+        - name: EMAIL_FROM
+          value: "_EMAIL_FROM"
+        - name: EMAIL_PROTOCOL
+          value: "_EMAIL_PROTOCOL"
+        - name: SMTP_HOST
+          value: "_SMTP_HOST"
+        - name: SMTP_PORT
+          value: "_APP_SMTP_PORT"
+        - name: SMTP_USER
+          value: "_SMTP_USER"
+        - name: SMTP_PASS
+          value: "_SMTP_PASS"
+        - name: hostname
+          valueFrom:
+            secretKeyRef:
+              name: shopdesk-revamp-secret-dev
+              key: hostname
+        - name: S3_BUCKET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: shopdesk-revamp-secret-dev
+              key: S3_BUCKET_KEY
+        - name: Access_Key
+          valueFrom:
+            secretKeyRef:
+              name: shopdesk-revamp-secret-dev
+              key: Access_Key
+        - name: Secret_Access
+          valueFrom:
+            secretKeyRef:
+              name: shopdesk-revamp-secret-dev
+              key: Secret_Access
+        - name: username
+          valueFrom:
+            secretKeyRef:
+              name: shopdesk-revamp-secret-dev
+              key: username
+        - name: password
+          valueFrom:
+            secretKeyRef:
+              name: shopdesk-revamp-secret-dev
+              key: password
+        - name: FIREBASE_CREDENTIALS
+          valueFrom:
+            secretKeyRef:
+              key: FIREBASE_CREDENTIALS
+              name: firebase-credentials
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - shopdesk
+            topologyKey: "kubernetes.io/hostname"              
+#       nodeSelector:
+ #        node-name: NODE_NAME        
+---
+ apiVersion: v1
+ kind: Service
+ metadata:
+   name: shopdesk-service
+   namespace: shopdesk-dev
+ spec:
+   selector:
+     app: shopdesk-backend-local
+   ports:
+      - port: 80
+        targetPort: 8080
+        protocol: TCP
+   type: LoadBalancer
+
+
+  

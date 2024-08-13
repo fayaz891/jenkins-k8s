@@ -1,0 +1,84 @@
+pipeline {
+    agent any
+    environment {
+        AWS_ACCOUNT_ID="667978309312"
+        AWS_DEFAULT_REGION="us-east-2" 
+        IMAGE_REPO_NAME="oe-local"
+        IMAGE_TAG="latest"
+        REPOSITORY_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}"
+        SERVICE_NAME = "walkeaze-oe-adapter"
+        NAME_SPACE = "oe-dev"
+        SERVICE_PORT= "8080"
+        SERVICE_TYPE= "http"
+        ENV = "development"
+      
+    }
+    stages{
+        stage('Build docker image'){
+            steps{
+                script{
+                    echo 'Building the Docker image.....'
+                    sh """
+                    export SERVICE_TYPE=$SERVICE_TYPE
+                    export SERVICE_NAME=$SERVICE_NAME
+                    export NAME_SPACE=$NAME_SPACE
+                    export SERVICE_PORT=$SERVICE_PORT
+                    export ENV=$ENV
+                    chmod +x ./aws-environment.sh
+                    ./aws-environment.sh
+                    """
+                    sh "docker build -t oe-dev-walkeaze-adapter-local -f DockerfileLocal ."
+                    sh "aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                    sh "docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${REPOSITORY_URI}:$IMAGE_TAG"
+                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}"
+                    sh "docker rmi ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}"
+                }
+            }
+        }
+      stage('deploying stage'){
+            steps{
+                script{
+                    echo 'deploy'
+                     sh """
+                      pwd
+                      cd /var/lib/jenkins/workspace/OE-walkeaze-adapter
+                      ls
+                      sed -i "s%_NODE_ENV%$NODE_ENV%g; s%_TS_URL%$TS_URL%g; s%_TS_KEY%$TS_KEY%g; s%_TS_ID%$TS_ID%g; s%_TS_PASSWORD%$TS_PASSWORD%g; s%_OE_AUTH_RETRY_ATTEMPT%$OE_AUTH_RETRY_ATTEMPT%g; s%_OE_URL%$OE_URL%g; s%_OE_USERNAME%$OE_USERNAME%g; s%_OE_PASSWORD%$OE_PASSWORD%g; s%_FB_APP_KEY%$FB_APP_KEY%g; s%_FB_AUTH_DOMAIN%$FB_AUTH_DOMAIN%g; s%_FB_PROJECT_ID%$FB_PROJECT_ID%g; s%_FB_STORAGE_BUCKET%$FB_STORAGE_BUCKET%g; s%_FB_MSG_SENDER_ID%$FB_MSG_SENDER_ID%g; s%_FB_APP_ID"%$FB_APP_ID"%g; s%_INV_CRON_FRQ%$INV_CRON_FRQ%g; s%_PRICE_CRON_FRQ%$PRICE_CRON_FRQ%g; s%_RABBITMQ_USER_NAME%$RABBITMQ_USER_NAME%g; s%_RABBITMQ_PASSWORD%$RABBITMQ_PASSWORD%g; s%_RABBITMQ_HOST%$RABBITMQ_HOST%g; s%_RABBITMQ_QUEUE_NAME%$RABBITMQ_QUEUE_NAME%g; s%_EXCHANGE_DLX%$EXCHANGE_DLX%g; s%_ROUTINGKEYDLX%$ROUTINGKEYDLX%g; s%_OE_ADAPTOR_DLX%$OE_ADAPTOR_DLX%g; s%_INV_TRANS_DATE%$INV_TRANS_DATE%g; s%_PRICE_TRANS_DATE%$PRICE_TRANS_DATE%g; s%IMAGE_REPO_NAME%$IMAGE_REPO_NAME%g; s%AWS_DEFAULT_REGION%$AWS_DEFAULT_REGION%g; s%AWS_ACCOUNT_ID%$AWS_ACCOUNT_ID%g; s%IMAGE_TAG%$IMAGE_TAG%g; s%NAME_SPACE%$NAME_SPACE%g; s%SERVICE_NAME%$SERVICE_NAME%g; s%SERVICE_TYPE%$SERVICE_TYPE%g; s%SERVICE_PORT%$SERVICE_PORT%g;" "k8s/servicefile.yaml"
+                      sed -i "s%_PRODUCT_CRON_FRQ%$PRODUCT_CRON_FRQ%g;s%_Product_TRANS_DATE%$Product_TRANS_DATE%g;s%_OE_REALM%$OE_REALM%g;s%_OE_AUTH_URL%$OE_AUTH_URL%g;" "k8s/servicefile.yaml"
+                      cd k8s
+                      sshpass -p "yo" scp servicefile.yaml or@115.42.77.77:all-svc-files/walkeaze-oe-adapter/servicefile.yaml
+                     
+                     """
+
+                }
+            }
+        }
+        }
+    }
+
+node {
+  def remote = [:]
+  remote.name = 'OE-k8s-cluster'
+  remote.host = '115.42.77.77'
+  remote.user = 'or'
+  remote.password = 'yo'
+  remote.allowAnyHosts = true
+  stage('Remote SSH') {
+    sshCommand remote: remote, command: "aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 667978309312.dkr.ecr.us-east-2.amazonaws.com"
+    sshCommand remote: remote, command: "docker pull 667978309312.dkr.ecr.us-east-2.amazonaws.com/oe-dev-walkeaze-adapter-local:latest"
+    sshCommand remote: remote, command: "docker tag 667978309312.dkr.ecr.us-east-2.amazonaws.com/oe-dev-walkeaze-adapter-local:latest oe-dev-walkeaze-adapter-local:latest"
+    sshCommand remote: remote, command: "docker rmi 667978309312.dkr.ecr.us-east-2.amazonaws.com/oe-dev-walkeaze-adapter-local:latest"
+    
+    sshCommand remote: remote, command: """
+    cd work
+    cd bin
+    ./kind --name or load docker-image oe-dev-walkeaze-adapter-local:latest
+    """
+    sshCommand remote: remote, command:  """ 
+   pwd
+   ls
+   cat all-svc-files/walkeaze-oe-adapter/service.yaml
+   kubectl apply -f all-svc-files/walkeaze-oe-adapter/servicefile.yaml
+"""
+  }
+}

@@ -1,0 +1,31 @@
+    livenessProbe:
+      failureThreshold: 3
+      httpGet:
+        httpHeaders:
+        - name: Custom-Header
+          value: Awesome
+        path: /
+        port: 8002
+        scheme: HTTP
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 60
+    name: lazurde-main
+    ports:
+    - containerPort: 8002
+      protocol: TCP
+    readinessProbe:
+      failureThreshold: 3
+      httpGet:
+        httpHeaders:
+        - name: Custom-Header
+          value: Awesome
+        path: /
+        port: 8002
+        scheme: HTTP
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 60
+
